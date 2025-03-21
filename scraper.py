@@ -35,7 +35,7 @@ async def get_tickets(date):
     chrome_options.add_argument("--disable-gpu")
 
     CHROMEDRIVER_PATH = os.getenv('CHROMEDRIVER_PATH', '/usr/bin/chromedriver')
-    driver = webdriver.Chrome(service=Service(CHROMEDRIVER_PATH), options=chrome_options)
+    driver = webdriver.Chrome(service=Service(CHROMEDRIVER_PATH, kill_browser_processes=True), options=chrome_options)
 
     EXEC_URL = get_link(date)
 
@@ -59,5 +59,5 @@ async def get_tickets(date):
 
         tickets.append(Ticket(date, time_text, amount_int))
 
-    driver.close()
+    driver.quit()
     return tickets
