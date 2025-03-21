@@ -31,6 +31,7 @@ dp = Dispatcher()
 
 moscow_tz = pytz.timezone('Europe/Moscow')
 
+
 def load_subscribers():
     try:
         with open(SUBSCRIBERS_FILE, 'r') as file:
@@ -54,6 +55,7 @@ subscribers = load_subscribers()
 
 scheduler = AsyncIOScheduler()
 
+
 async def broadcast_all(ticket, message=None):
     logger.info(f"Найден билет: {ticket}")
     if ticket.amount > 0:
@@ -62,9 +64,11 @@ async def broadcast_all(ticket, message=None):
             await bot.send_message(user_id, message_text)
             logger.info(f"Сообщение отправлено пользователю {user_id}")
 
-async def broadcast_raw(ticket,message=None):
+
+async def broadcast_raw(ticket, message=None):
     logger.info(f"Raw вывод {ticket}")
     await message.answer(str(ticket))
+
 
 async def regular_check(operation, message=None):
     logger.info("Начата регулярная проверка")
@@ -77,7 +81,7 @@ async def regular_check(operation, message=None):
         tickets = await get_tickets(check_time)
         logger.info(f"Найдено билетов: {len(tickets)}")
         for ticket in tickets:
-            await operation(ticket,message)
+            await operation(ticket, message)
 
 
 @dp.message(Command("start"))

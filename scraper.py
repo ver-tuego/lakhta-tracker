@@ -2,6 +2,7 @@ import asyncio
 import os
 import tempfile
 
+import psutil
 from lxml import etree
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -19,6 +20,7 @@ class Ticket:
 
 
 BASE_URL = 'https://tickets.lakhta.events/event/23FA307410B1F9BE84842D1ABE30D6AB48EA2CF8'
+
 
 def get_link(date):
     return f"{BASE_URL}/{date.strftime('%Y-%m-%d')}"
@@ -60,4 +62,11 @@ async def get_tickets(date):
         tickets.append(Ticket(date, time_text, amount_int))
 
     driver.quit()
+    for proc in psutil.process_iter(attrs=["pid", "name"]):
+        try:
+            if proc.info["name"] and "chrome" in proc.info["name"].lower():
+                proc.kill()
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            continue
+
     return tickets
