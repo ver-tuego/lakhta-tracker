@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import sys
+import tempfile
 from datetime import datetime, timedelta
 
 import pytz
@@ -9,8 +10,11 @@ from aiogram import Bot, Dispatcher
 from aiogram.filters import Command
 from aiogram.types import Message
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
 
-from scraper import get_tickets, get_link
+from scraper import get_tickets, get_link_by_timestamp, get_dates, BASE_URL
 
 logging.basicConfig(
     level=logging.INFO,
@@ -31,6 +35,20 @@ dp = Dispatcher()
 
 moscow_tz = pytz.timezone('Europe/Moscow')
 
+user_data_dir = tempfile.mkdtemp()
+chrome_options = Options()
+chrome_options.add_argument(f"--user-data-dir={user_data_dir}")
+chrome_options.add_argument("--headless")
+chrome_options.add_argument("--no-sandbox")
+chrome_options.add_argument("--disable-dev-shm-usage")
+chrome_options.add_argument("--disable-gpu")
+
+CHROMEDRIVER_PATH = os.getenv('CHROMEDRIVER_PATH', '/usr/bin/chromedriver')
+service = Service(CHROMEDRIVER_PATH, kill_browser_processes=True)
+service.start()
+
+driver = webdriver.Chrome(service=service, options=chrome_options)
+driver.get(BASE_URL) # открытая страница для поддержания сессии и минимизации зомби-процессов
 
 def load_subscribers():
     try:
@@ -59,7 +77,7 @@ scheduler = AsyncIOScheduler()
 async def broadcast_all(ticket, message=None):
     logger.info(f"Найден билет: {ticket}")
     if ticket.amount > 0:
-        message_text = f"Найден билет: {ticket}. Ссылка: {get_link(ticket.date)}"
+        message_text = f"Найдены билеты: {ticket}. Ссылка: {get_link_by_timestamp(ticket.date)}"
         for user_id in subscribers:
             await bot.send_message(user_id, message_text)
             logger.info(f"Сообщение отправлено пользователю {user_id}")
@@ -72,17 +90,14 @@ async def broadcast_raw(ticket, message=None):
 
 async def regular_check(operation, message=None):
     logger.info("Начата регулярная проверка")
-    current = datetime.now(moscow_tz)
-    start = 0
-    if current.hour >= 18:
-        start = 1
-    for days in range(start, 3):
-        check_time = current + timedelta(days=days)
-        tickets = await get_tickets(check_time)
+    dates = await get_dates(driver)
+    for date in dates:
+        tickets = await get_tickets(driver, date)
         logger.info(f"Найдено билетов: {len(tickets)}")
         for ticket in tickets:
             await operation(ticket, message)
-
+    else:
+        logger.info("Даты не обнаружены")
 
 @dp.message(Command("start"))
 async def send_welcome(message: Message):
@@ -126,7 +141,7 @@ async def stop_messages(message: Message):
     if jobs:
         next_run_time = jobs[0].next_run_time
         next_run_time_formatted = next_run_time.astimezone(moscow_tz)
-        await message.answer(f"Время следующей рассылки: {next_run_time_formatted}")
+        await message.answer(f"Время следующего обновления: {next_run_time_formatted}")
 
 
 async def main():
@@ -134,10 +149,16 @@ async def main():
     logger.info("Добавлена задача регулярной проверки")
     scheduler.add_job(regular_check, 'interval', minutes=FREQUENCY, args=[broadcast_all])
     scheduler.start()
-    await dp.start_polling(bot)
+
+    try:
+        await dp.start_polling(bot)
+    finally:
+        await asyncio.to_thread(driver.quit)
+        service.stop()
 
 
 if __name__ == '__main__':
     import asyncio
 
     asyncio.run(main())
+
