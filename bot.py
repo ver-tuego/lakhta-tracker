@@ -2,8 +2,7 @@ import json
 import logging
 import os
 import sys
-import tempfile
-from datetime import datetime, timedelta
+from collections import defaultdict
 
 import pytz
 from aiogram import Bot, Dispatcher
@@ -35,20 +34,24 @@ dp = Dispatcher()
 
 moscow_tz = pytz.timezone('Europe/Moscow')
 
-user_data_dir = tempfile.mkdtemp()
 chrome_options = Options()
-chrome_options.add_argument(f"--user-data-dir={user_data_dir}")
 chrome_options.add_argument("--headless")
 chrome_options.add_argument("--no-sandbox")
 chrome_options.add_argument("--disable-dev-shm-usage")
 chrome_options.add_argument("--disable-gpu")
+chrome_options.add_argument("--disable-extensions")
+chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+chrome_options.add_argument("--disable-infobars")
+chrome_options.add_argument("--disable-notifications")
+chrome_options.add_argument("--blink-settings=imagesEnabled=false")
 
 CHROMEDRIVER_PATH = os.getenv('CHROMEDRIVER_PATH', '/usr/bin/chromedriver')
 service = Service(CHROMEDRIVER_PATH, kill_browser_processes=True)
 service.start()
 
 driver = webdriver.Chrome(service=service, options=chrome_options)
-driver.get(BASE_URL) # открытая страница для поддержания сессии и минимизации зомби-процессов
+driver.get(BASE_URL)  # открытая страница для поддержания сессии и минимизации зомби-процессов
+
 
 def load_subscribers():
     try:
@@ -74,30 +77,44 @@ subscribers = load_subscribers()
 scheduler = AsyncIOScheduler()
 
 
-async def broadcast_all(ticket, message=None):
-    logger.info(f"Найден билет: {ticket}")
-    if ticket.amount > 0:
-        message_text = f"Найдены билеты: {ticket}. Ссылка: {get_link_by_timestamp(ticket.date)}"
-        for user_id in subscribers:
-            await bot.send_message(user_id, message_text)
-            logger.info(f"Сообщение отправлено пользователю {user_id}")
+async def broadcast_all(tickets, message=None):
+    for ticket in tickets:
+        logger.info(f"Найден билет: {ticket}")
+        if ticket.amount > 0:
+            message_text = f"Найдены билеты: {ticket}. Ссылка: {get_link_by_timestamp(ticket.date)}"
+            for user_id in subscribers:
+                await bot.send_message(user_id, message_text)
+                logger.info(f"Сообщение отправлено пользователю {user_id}")
 
 
-async def broadcast_raw(ticket, message=None):
-    logger.info(f"Raw вывод {ticket}")
-    await message.answer(str(ticket))
+async def broadcast_raw(tickets, message=None):
+    logger.info(f"Raw вывод {len(tickets)}")
+    grouped_tickets = defaultdict(list)
+
+    for ticket in tickets:
+        grouped_tickets[ticket.date].append(ticket)
+
+    grouped_tickets = dict(grouped_tickets)
+
+    message_text = ""
+    for date, tickets_in_date in grouped_tickets.items():
+        message_text += f"{date}\n"
+        for ticket in tickets_in_date:
+            message_text += f"  {ticket.time}: {ticket.amount} шт\n"
+        message_text += "\n"
+
+    await message.answer(message_text)
 
 
 async def regular_check(operation, message=None):
     logger.info("Начата регулярная проверка")
     dates = await get_dates(driver)
+    logger.info(f"Найдены даты: {len(dates)}")
     for date in dates:
         tickets = await get_tickets(driver, date)
         logger.info(f"Найдено билетов: {len(tickets)}")
-        for ticket in tickets:
-            await operation(ticket, message)
-    else:
-        logger.info("Даты не обнаружены")
+        await operation(tickets, message)
+
 
 @dp.message(Command("start"))
 async def send_welcome(message: Message):
@@ -147,7 +164,7 @@ async def stop_messages(message: Message):
 async def main():
     logger.info("Бот запущен")
     logger.info("Добавлена задача регулярной проверки")
-    scheduler.add_job(regular_check, 'interval', minutes=FREQUENCY, args=[broadcast_all])
+    scheduler.add_job(regular_check, 'interval', minutes=FREQUENCY, args=[broadcast_all], misfire_grace_time=60)
     scheduler.start()
 
     try:
@@ -161,4 +178,3 @@ if __name__ == '__main__':
     import asyncio
 
     asyncio.run(main())
-

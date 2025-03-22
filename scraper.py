@@ -16,6 +16,7 @@ class Ticket:
 
 BASE_URL = 'https://tickets.lakhta.events/event/23FA307410B1F9BE84842D1ABE30D6AB48EA2CF8'
 
+
 async def get_html(driver, url):
     await asyncio.to_thread(driver.execute_script, f"window.open('{url}');")
 
