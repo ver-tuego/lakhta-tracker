@@ -14,7 +14,7 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 
-from scraper import get_tickets, get_link_by_timestamp, get_dates, BASE_URL
+from scraper import get_tickets, get_dates, BASE_URL, get_link_by_date_string
 
 logging.basicConfig(
     level=logging.INFO,
@@ -82,7 +82,7 @@ async def broadcast_all(tickets, message=None):
     for ticket in tickets:
         logger.info(f"Найден билет: {ticket}")
         if ticket.amount > 0:
-            message_text = f"Найдены билеты: {ticket}. Ссылка: {get_link_by_timestamp(ticket.date)}"
+            message_text = f"Найдены билеты: {ticket}. Ссылка: {get_link_by_date_string(ticket.date)}"
             for user_id in subscribers:
                 try:
                     await bot.send_message(user_id, message_text)

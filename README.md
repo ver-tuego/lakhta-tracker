@@ -18,8 +18,8 @@ docker build -t lakhta-tracker .
 ### 2. Загрузка Docker-образа из GitHub Container Registry
 
 ```bash
-docker pull ghcr.io/kylichist/lakhta-tracker:1.0.4
-docker tag ghcr.io/kylichist/lakhta-tracker:1.0.4 lakhta-tracker
+docker pull ghcr.io/kylichist/lakhta-tracker:1.0.5
+docker tag ghcr.io/kylichist/lakhta-tracker:1.0.5 lakhta-tracker
 ```
 
 ## Запуск
@@ -34,5 +34,5 @@ docker run -d \
 ```
 
 Вместо %YOUR_BOT_API_TOKEN% подставьте токен вашего бота, полученный у [@BotFather](https://t.me/BotFather). Также
-опционально можно указать параметр `-e FREQUENCY=%MINUTES%`, где %MINUTES% - частота проверки доступности билетов (по
+опционально можно указать параметр `-e FREQUENCY=%MINUTES%`, где %MINUTES% - частота (число минут) проверки доступности билетов (по
 умолчанию 5 минут).
