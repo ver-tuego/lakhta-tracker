@@ -3,9 +3,11 @@ import logging
 import os
 import sys
 from collections import defaultdict
+from datetime import datetime
 
 import pytz
 from aiogram import Bot, Dispatcher
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command
 from aiogram.types import Message
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -13,7 +15,7 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 
-from scraper import get_tickets, get_link_by_timestamp, get_dates, BASE_URL
+from scraper import get_tickets, get_link_by_timestamp, get_dates, BASE_URL, Ticket
 
 logging.basicConfig(
     level=logging.INFO,
@@ -83,8 +85,11 @@ async def broadcast_all(tickets, message=None):
         if ticket.amount > 0:
             message_text = f"Найдены билеты: {ticket}. Ссылка: {get_link_by_timestamp(ticket.date)}"
             for user_id in subscribers:
-                await bot.send_message(user_id, message_text)
-                logger.info(f"Сообщение отправлено пользователю {user_id}")
+                try:
+                    await bot.send_message(user_id, message_text)
+                    logger.info(f"Сообщение отправлено пользователю {user_id}")
+                except TelegramBadRequest as e:
+                    logger.info(f"Ошибка отправки сообщения пользователю {user_id}: {e.message}")
 
 
 async def broadcast_raw(tickets, message=None):
