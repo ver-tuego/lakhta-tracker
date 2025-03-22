@@ -3,7 +3,6 @@ import logging
 import os
 import sys
 from collections import defaultdict
-from datetime import datetime
 
 import pytz
 from aiogram import Bot, Dispatcher
@@ -15,7 +14,7 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 
-from scraper import get_tickets, get_link_by_timestamp, get_dates, BASE_URL, Ticket
+from scraper import get_tickets, get_link_by_timestamp, get_dates, BASE_URL
 
 logging.basicConfig(
     level=logging.INFO,
@@ -103,12 +102,13 @@ async def broadcast_raw(tickets, message=None):
 
     message_text = ""
     for date, tickets_in_date in grouped_tickets.items():
-        message_text += f"{date}\n"
+        message_text += f"*{date}*\n"
         for ticket in tickets_in_date:
-            message_text += f"  {ticket.time}: {ticket.amount} шт\n"
+            emph = "*" if ticket.amount > 0 else ""
+            message_text += f"{emph}  {ticket.time}: {ticket.amount} шт{emph}\n"
         message_text += "\n"
 
-    await message.answer(message_text)
+    await message.answer(message_text, parse_mode="Markdown")
 
 
 async def regular_check(operation, message=None):

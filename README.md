@@ -18,8 +18,8 @@ docker build -t lakhta-tracker .
 ### 2. Загрузка Docker-образа из GitHub Container Registry
 
 ```bash
-docker pull ghcr.io/kylichist/lakhta-tracker:1.0.3
-docker tag ghcr.io/kylichist/lakhta-tracker:1.0.3 lakhta-tracker
+docker pull ghcr.io/kylichist/lakhta-tracker:1.0.4
+docker tag ghcr.io/kylichist/lakhta-tracker:1.0.4 lakhta-tracker
 ```
 
 ## Запуск
