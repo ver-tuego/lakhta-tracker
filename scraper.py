@@ -37,8 +37,8 @@ def get_link_by_timestamp(date):
     return f"{BASE_URL}/{date.strftime('%Y-%m-%d')}"
 
 
-def get_link_by_date_string(date_string):
-    return f"{BASE_URL}/{date_string}"
+def get_link_by_date_string(date_string, time_string=None):
+    return f"{BASE_URL}/{date_string}" if time_string is None else f"{BASE_URL}/{date_string}/{time_string}"
 
 
 async def get_dates(driver):
