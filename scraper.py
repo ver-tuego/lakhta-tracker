@@ -68,7 +68,7 @@ async def get_dates(driver):
     for slide in tree.xpath('//div[@class="swiper-wrapper"]/div[contains(@class, "swiper-slide")]'):
         day_element = slide.xpath('.//div[@class="slide__day"]/text()')
         month_element = slide.xpath('.//div[@class="slide__month"]/text()')
-        day = day_element[0].strip()
+        day = day_element[0].strip().zfill(2)
         month = month_replacements[month_element[0].strip()]
         year = current.year
         if day and month and year:
