@@ -3,6 +3,7 @@ import logging
 import os
 import sys
 from collections import defaultdict
+from datetime import datetime, timedelta
 
 import pytz
 from aiogram import Bot, Dispatcher
@@ -29,6 +30,7 @@ BOT_TOKEN = os.getenv('BOT_TOKEN')
 FREQUENCY = int(os.getenv('FREQUENCY', 5))
 DATA_DIR = '/app/data'
 SUBSCRIBERS_FILE = os.path.join(DATA_DIR, 'subscribers.json')
+CACHE_FILE = os.path.join(DATA_DIR, 'sent_tickets.json')
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
@@ -73,22 +75,55 @@ def save_subscribers(subscribers_set):
         logger.info("Подписчики записаны")
 
 
+def load_sent_tickets():
+    try:
+        with open(CACHE_FILE, 'r') as f:
+            data = json.load(f)
+            # clear cache every 24h
+            cutoff = datetime.now() - timedelta(hours=24)
+            filtered_data = {
+                k: v for k, v in data.items()
+                if datetime.fromisoformat(v['timestamp']) >= cutoff
+            }
+            return filtered_data
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+
+def save_sent_tickets(sent_tickets):
+    with open(CACHE_FILE, 'w') as f:
+        json.dump(sent_tickets, f, indent=2)
+
+
+sent_tickets_cache = load_sent_tickets()
+
 subscribers = load_subscribers()
 
 scheduler = AsyncIOScheduler()
 
 
 async def broadcast_all(tickets, message=None):
+    global sent_tickets_cache
+
     for ticket in tickets:
         logger.info(f"Найден билет: {ticket}")
         if ticket.amount > 0:
-            message_text = f"Найдены билеты: {ticket}. Ссылка: {get_link_by_date_string(ticket.date, ticket.time)}"
-            for user_id in subscribers:
-                try:
-                    await bot.send_message(user_id, message_text)
-                    logger.info(f"Сообщение отправлено пользователю {user_id}")
-                except TelegramBadRequest as e:
-                    logger.info(f"Ошибка отправки сообщения пользователю {user_id}: {e.message}")
+            key = f"{ticket.date}_{ticket.time}"
+            if key not in sent_tickets_cache:
+                message_text = f"Найдены билеты: {ticket}. Ссылка: {get_link_by_date_string(ticket.date, ticket.time)}"
+                for user_id in subscribers:
+                    try:
+                        await bot.send_message(user_id, message_text)
+                        logger.info(f"Сообщение отправлено пользователю {user_id}")
+                    except TelegramBadRequest as e:
+                        logger.info(f"Ошибка отправки сообщения пользователю {user_id}: {e.message}")
+
+                sent_tickets_cache[key] = {
+                    "timestamp": datetime.now().isoformat(),
+                    "amount": ticket.amount
+                }
+
+    save_sent_tickets(sent_tickets_cache)
 
 
 async def broadcast_raw(tickets, message=None):
@@ -150,13 +185,13 @@ async def stop_messages(message: Message):
 
 
 @dp.message(Command("raw"))
-async def stop_messages(message: Message):
+async def raw_check(message: Message):
     logger.info("Команда /raw")
     await regular_check(broadcast_raw, message)
 
 
 @dp.message(Command("status"))
-async def stop_messages(message: Message):
+async def status_check(message: Message):
     logger.info("Команда /status")
     await message.answer("Бот жив.")
     jobs = scheduler.get_jobs()
@@ -181,5 +216,4 @@ async def main():
 
 if __name__ == '__main__':
     import asyncio
-
     asyncio.run(main())
