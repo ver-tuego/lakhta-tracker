@@ -95,6 +95,7 @@ def save_sent_tickets(sent_tickets):
         json.dump(sent_tickets, f, indent=2)
 
 
+# глобальный кэш отправленных билетов
 sent_tickets_cache = load_sent_tickets()
 
 subscribers = load_subscribers()
@@ -105,11 +106,27 @@ scheduler = AsyncIOScheduler()
 async def broadcast_all(tickets, message=None):
     global sent_tickets_cache
 
+    updated_cache = {}
+
     for ticket in tickets:
         logger.info(f"Найден билет: {ticket}")
         if ticket.amount > 0:
-            key = f"{ticket.date}_{ticket.time}"
-            if key not in sent_tickets_cache:
+            key = f"{ticket.date}_{ticket.time}"  # уникальный ключ по дате и времени
+
+            # проверяем, было ли изменение количества
+            prev_entry = sent_tickets_cache.get(key)
+            should_send = False
+
+            if prev_entry is None:
+                # новый билет
+                should_send = True
+                logger.info(f"Новый билет: {ticket}")
+            elif prev_entry['amount'] != ticket.amount:
+                # количество изменилось
+                should_send = True
+                logger.info(f"Количество изменилось для {ticket}: {prev_entry['amount']} → {ticket.amount}")
+
+            if should_send:
                 message_text = f"Найдены билеты: {ticket}. Ссылка: {get_link_by_date_string(ticket.date, ticket.time)}"
                 for user_id in subscribers:
                     try:
@@ -118,11 +135,19 @@ async def broadcast_all(tickets, message=None):
                     except TelegramBadRequest as e:
                         logger.info(f"Ошибка отправки сообщения пользователю {user_id}: {e.message}")
 
-                sent_tickets_cache[key] = {
-                    "timestamp": datetime.now().isoformat(),
-                    "amount": ticket.amount
-                }
+            # обновляем кэш в любом случае (если amount > 0)
+            updated_cache[key] = {
+                "timestamp": datetime.now().isoformat(),
+                "amount": ticket.amount
+            }
+        else:
+            key = f"{ticket.date}_{ticket.time}"
+            if key in sent_tickets_cache:
+                logger.info(f"Билет больше недоступен: {ticket}")
+                # можно отправить уведомление о том, что билет закончился (опционально)
 
+    # обновляем кэш
+    sent_tickets_cache.update(updated_cache)
     save_sent_tickets(sent_tickets_cache)
 
 
@@ -216,4 +241,5 @@ async def main():
 
 if __name__ == '__main__':
     import asyncio
+
     asyncio.run(main())
